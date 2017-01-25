@@ -171,7 +171,7 @@ function processCRMServiceTrx(sm: StateMachine, e) {
         }
 
         case 'reconcile_balance_ksh': {
-            crm.state.credit = e.amount_change;
+ //           crm.state.credit = e.amount_change;
             break;
         }
 
