@@ -1,0 +1,40 @@
+{
+  "name": "paygo-services",
+  "version": "0.1.0",
+  "description": "PayGo Data Services",
+  "repository": "https://github.com/PayGo-Energy/paygo-services.git",
+  "private": true,
+  "engines": {
+    "node": "6.9.1"
+  },
+  "main": "src/main.js",
+  "scripts": {
+    "prepublish": "tsc"
+  },
+  "dependencies": {
+    "@types/argparse": "^1.0.30",
+    "@types/bunyan": "0.0.32",
+    "@types/chai": "^3.4.34",
+    "@types/cron": "1.0.30",
+    "@types/form-data": "0.0.32",
+    "@types/moment-timezone": "^0.2.32",
+    "@types/request": "0.0.33",
+    "@types/request-promise-native": "^1.0.2",
+    "argparse": "^1.0.9",
+    "bunyan": "1.8.4",
+    "cron": "1.1.1",
+    "es6-promisify": "^5.0.0",
+    "firebase": "3.6.0",
+    "firebase-admin": "^4.0.3",
+    "google-auth-library": "^0.9.9",
+    "googleapis": "^14.2.0",
+    "heapdump": "^0.3.7",
+    "jStat": "^1.5.3",
+    "memwatch-next": "^0.3.0",
+    "moment": "^2.17.0",
+    "moment-timezone": "^0.5.9",
+    "request": "2.78.0",
+    "request-promise-native": "1.0.3",
+    "typescript": "2.0.9"
+  }
+}

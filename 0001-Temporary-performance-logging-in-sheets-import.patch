@@ -1,0 +1,203 @@
+From 77ab46d77f6159f800a6a83ba6977508ddecbc7a Mon Sep 17 00:00:00 2001
+From: Wade Brainerd <wadeb@wadeb.com>
+Date: Tue, 17 Jan 2017 16:52:16 -0500
+Subject: [PATCH] Temporary performance logging in sheets import
+
+---
+ src/import-sheets-util.ts | 35 +++++++++++++++++++++++++++++++++++
+ src/main.ts               |  2 ++
+ 2 files changed, 37 insertions(+)
+
+diff --git a/src/import-sheets-util.ts b/src/import-sheets-util.ts
+index 3e4434b..1931492 100644
+--- a/src/import-sheets-util.ts
++++ b/src/import-sheets-util.ts
+@@ -1,11 +1,14 @@
+ import * as config from './config';
+ import * as firebase from 'firebase';
+ import * as hooks from './hooks';
++import * as bunyan from 'bunyan'; 
+ import * as moment from 'moment-timezone';
+ 
+ const google = require('googleapis');
+ const promisify = require('es6-promisify');
+ 
++const log = bunyan.createLogger({ name: 'import-sheets-util' });
++
+ const db = firebase.database();
+ const sheets = google.sheets('v4');
+ 
+@@ -64,6 +67,8 @@ interface ImportFromSheetOptions {
+ };
+ 
+ export async function importFromSheet(options: ImportFromSheetOptions) {
++    log.info(`enter importFromSheet ${options.documentName}`);
++
+     if (options.mode != 'push' && options.mode != 'update') {
+         throw new Error(`invalid import mode ${options.mode}`);
+     }
+@@ -72,14 +77,18 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+ 
+     let jwtClient = new google.auth.JWT(CREDS.client_email, null, CREDS.private_key, SCOPES, null);
+ 
++    log.info(`before authorize ${options.documentName}`);
+     await promisify(jwtClient.authorize, jwtClient)();
++    log.info(`after authorize ${options.documentName}`);
+ 
+     let documentMeta;
+     try {
++        log.info(`before get meta ${options.documentName}`);
+         documentMeta = await promisify(sheets.spreadsheets.get)({
+             auth: jwtClient,
+             spreadsheetId: documentKey
+         });
++        log.info(`after get meta ${options.documentName}`);
+     } catch (err) {
+         err.message =
+             `Sheet ${documentKey} is inaccessible. ` +
+@@ -105,7 +114,9 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+ 
+     let startRow = 2;
+     if (options.mode == 'push') {
++        log.info(`before get start row ${options.documentName}`);
+         startRow = (await db.ref(options.startRowRef).once('value')).val() || startRow;
++        log.info(`after get start row ${options.documentName}`);
+         if (startRow > 1 + sheetMeta.properties.gridProperties.rowCount) {
+             throw new Error(
+                 `${importedFromSheet} sheet is intended to only ever be added to, but it has fewer rows than the last time it was imported. ` +
+@@ -118,11 +129,13 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+ 
+     let endColLetter = columnToLetter(sheetMeta.properties.gridProperties.columnCount);
+ 
++    log.info(`before head get ${options.documentName}`);
+     let headResponse = await promisify(sheets.spreadsheets.values.get)({
+         auth: jwtClient,
+         spreadsheetId: documentKey,
+         range: `${options.sheetName}!A1:${endColLetter}`
+     });
++    log.info(`after head get ${options.documentName}`);
+     let head = headResponse.values[0];
+ 
+     let mapping = options.mapping;
+@@ -169,11 +182,13 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+ 
+     let validKeys = {};
+ 
++    log.info(`before values.get ${options.documentName}`);
+     let dataResponse = await promisify(sheets.spreadsheets.values.get)({
+         auth: jwtClient,
+         spreadsheetId: documentKey,
+         range: `${options.sheetName}!A${startRow}:${endColLetter}`
+     });
++    log.info(`after values.get ${options.documentName}`);
+ 
+     if (!dataResponse.values && options.mode == 'update') {
+         throw new Error(
+@@ -237,10 +252,12 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+                             `Data import stopped, please fix this manually.`);
+                     }
+ 
++                    log.info(`before duplicate check ${options.documentName}`);
+                     isDuplicate = (await ref
+                         .orderByChild(options.uniqueKey)
+                         .equalTo(uniqueValue).once('value')
+                     ).val();
++                    log.info(`after duplicate check ${options.documentName}`);
+ 
+                     if (isDuplicate) {
+                         throw new Error(
+@@ -249,6 +266,7 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+                     }
+                 }
+ 
++                log.info(`before hooks ${options.documentName}`);
+                 try {
+                     await hooks.execute(options.hook, {
+                         value: info
+@@ -260,11 +278,16 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+                         `Data import stopped, please fix this manually.`;
+                     throw err;
+                 }
++                log.info(`after hooks ${options.documentName}`);
+ 
++                log.info(`before push ${options.documentName}`);
+                 await ref.push(info);
++                log.info(`after push ${options.documentName}`);
+ 
+                 startRow += 1;
++                log.info(`before startrow ${options.documentName}`);
+                 await db.ref(options.startRowRef).set(startRow);
++                log.info(`after startrow ${options.documentName}`);
+ 
+             } else {
+ 
+@@ -277,17 +300,21 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+ 
+                 validKeys[key] = true;
+ 
++                log.info(`before old ${options.documentName}`);
+                 let old = (await ref.once('value')).val();
++                log.info(`after old ${options.documentName}`);
+ 
+                 if (!objectEquals(old, info)) {
+                     try {
+                         if (old) {
++                            log.info(`before hooks ${options.documentName}`);
+                             await hooks.execute(options.hook, {
+                                 old: old,
+                                 new: info,
+                                 ref: options.destinationRef,
+                                 key: key
+                             });
++                            log.info(`after hooks ${options.documentName}`);
+                         }
+                     } catch (err) {
+                         err.message =
+@@ -297,7 +324,9 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+                         throw err;
+                     }
+ 
++                    log.info(`before set ${options.documentName}`);
+                     await ref.set(info);
++                    log.info(`after set ${options.documentName}`);
+                 }
+ 
+                 startRow += 1;
+@@ -307,6 +336,8 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+     }
+ 
+     if (options.mode == 'update') {
++        log.info(`before existing data check ${options.documentName}`);
++
+         let existingData = (await db.ref(options.destinationRef).once('value')).val();
+         for (let key in existingData) {
+             if (!(key in validKeys)) {
+@@ -317,7 +348,11 @@ export async function importFromSheet(options: ImportFromSheetOptions) {
+                 await db.ref(options.destinationRef).child(key).remove();
+             }
+         }
++
++        log.info(`after existing data check ${options.documentName}`);
+     }
++
++    log.info(`leave importFromSheet ${options.documentName}`);
+ }
+ 
+ export function transformDate(value: string, context: any) {
+diff --git a/src/main.ts b/src/main.ts
+index 20f931d..917261f 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -75,7 +75,9 @@ async function refresh(name, callback) {
+     inRefresh[name] = true;
+ 
+     try {
++        log.info(`begin refresh ${name}`);
+         await callback();
++        log.info(`end refresh ${name}`);
+     } catch (err) {
+         throw err;
+     } finally {
+-- 
+2.6.4.windows.1
+

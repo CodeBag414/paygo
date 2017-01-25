@@ -1,0 +1,25 @@
+# Node build artifacts
+node_modules
+npm-debug.log
+
+# Typescript build artifacts
+*.js
+*.js.map
+
+# Local development
+config*.ts
+*.env
+*.dev
+.DS_Store
+.vscode
+*.heapsnapshot
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Private shit
+auth
+
+# Backups
+*.json.gz
